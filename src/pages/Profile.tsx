@@ -1,5 +1,6 @@
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -11,54 +12,84 @@ import {
   Star,
   Plane,
   Clock,
-  Edit
+  Edit,
+  Loader2,
 } from "lucide-react";
-import parisImage from "@/assets/dest-paris.jpg";
-import japanImage from "@/assets/dest-japan.jpg";
-import santoriniImage from "@/assets/dest-santorini.jpg";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+
+interface Booking {
+  id: string;
+  start_date: string;
+  end_date: string;
+  status: string;
+  destinations: {
+    name: string;
+    image_url: string | null;
+  } | null;
+}
 
 const Profile = () => {
+  const { user } = useAuth();
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (user) {
+      fetchUserData();
+    }
+  }, [user]);
+
+  const fetchUserData = async () => {
+    try {
+      const { data: bookingsData, error } = await supabase
+        .from("bookings")
+        .select(`
+          *,
+          destinations (name, image_url)
+        `)
+        .order("start_date", { ascending: true });
+
+      if (error) throw error;
+      setBookings(bookingsData || []);
+    } catch (error: any) {
+      toast.error("Failed to load profile data");
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getDaysDifference = (startDate: string, endDate: string) => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   const userStats = [
-    { label: "Trips Completed", value: "12", icon: Plane },
+    { label: "Trips Completed", value: bookings.filter(b => b.status === "confirmed" && new Date(b.end_date) < new Date()).length.toString(), icon: Plane },
+    { label: "Upcoming Trips", value: bookings.filter(b => b.status === "confirmed" && new Date(b.start_date) > new Date()).length.toString(), icon: Calendar },
     { label: "Countries Visited", value: "8", icon: MapPin },
-    { label: "Reviews Written", value: "15", icon: Star },
     { label: "Saved Destinations", value: "24", icon: Heart },
   ];
 
-  const upcomingTrips = [
-    {
-      id: 1,
-      destination: "Paris, France",
-      image: parisImage,
-      date: "March 15, 2025",
-      status: "Confirmed",
-      days: 7,
-    },
-    {
-      id: 2,
-      destination: "Kyoto, Japan",
-      image: japanImage,
-      date: "June 10, 2025",
-      status: "Pending",
-      days: 10,
-    },
-  ];
+  const upcomingTrips = bookings.filter(b => 
+    b.status === "confirmed" && new Date(b.start_date) > new Date()
+  );
 
-  const pastTrips = [
-    {
-      id: 1,
-      destination: "Santorini, Greece",
-      image: santoriniImage,
-      date: "September 2024",
-      rating: 5,
-    },
-  ];
-
-  const savedDestinations = [
-    { id: 1, name: "Bali, Indonesia", image: parisImage },
-    { id: 2, name: "Iceland", image: japanImage },
-    { id: 3, name: "New Zealand", image: santoriniImage },
-  ];
+  const pastTrips = bookings.filter(b => 
+    b.status === "confirmed" && new Date(b.end_date) < new Date()
+  );
 
   return (
     <div className="min-h-screen py-12">
@@ -67,14 +98,14 @@ const Profile = () => {
         <Card className="mb-8 border-border shadow-soft animate-fade-in-up">
           <CardContent className="p-8">
             <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
-              <Avatar className="h-24 w-24">
-                <AvatarFallback className="gradient-ocean text-white text-3xl font-bold">
-                  JD
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 text-center md:text-left">
-                <div className="flex flex-col md:flex-row md:items-center gap-3 mb-2">
-                  <h1 className="text-3xl font-bold">John Doe</h1>
+                  <Avatar className="h-24 w-24">
+                    <AvatarFallback className="gradient-ocean text-white text-3xl font-bold">
+                      {user?.email?.charAt(0).toUpperCase() || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 text-center md:text-left">
+                    <div className="flex flex-col md:flex-row md:items-center gap-3 mb-2">
+                      <h1 className="text-3xl font-bold">{user?.email?.split("@")[0] || "Traveler"}</h1>
                   <Badge variant="secondary" className="w-fit mx-auto md:mx-0">
                     Travel Enthusiast
                   </Badge>
@@ -129,36 +160,51 @@ const Profile = () => {
           </TabsList>
 
           <TabsContent value="upcoming" className="space-y-4">
-            {upcomingTrips.map((trip) => (
+            {upcomingTrips.length === 0 ? (
+              <Card className="border-border shadow-soft">
+                <CardContent className="p-12 text-center">
+                  <Calendar className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+                  <h3 className="text-xl font-semibold mb-2">No upcoming trips</h3>
+                  <p className="text-muted-foreground mb-4">Start planning your next adventure!</p>
+                  <Button variant="hero" asChild>
+                    <a href="/planner">Plan a Trip</a>
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              upcomingTrips.map((trip) => (
               <Card key={trip.id} className="border-border shadow-soft hover:shadow-medium transition-smooth">
                 <CardContent className="p-0">
                   <div className="flex flex-col md:flex-row">
                     <div className="md:w-48 h-48 md:h-auto">
                       <img
-                        src={trip.image}
-                        alt={trip.destination}
+                        src={trip.destinations?.image_url || ""}
+                        alt={trip.destinations?.name || "Destination"}
                         className="w-full h-full object-cover rounded-t-lg md:rounded-l-lg md:rounded-t-none"
+                        onError={(e) => {
+                          e.currentTarget.src = "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800";
+                        }}
                       />
                     </div>
                     <div className="flex-1 p-6">
                       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-4">
                         <div>
-                          <h3 className="text-xl font-semibold mb-2">{trip.destination}</h3>
+                          <h3 className="text-xl font-semibold mb-2">{trip.destinations?.name || "Unknown Destination"}</h3>
                           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                             <span className="flex items-center gap-1">
                               <Calendar className="h-4 w-4" />
-                              {trip.date}
+                              {new Date(trip.start_date).toLocaleDateString()}
                             </span>
                             <span className="flex items-center gap-1">
                               <Clock className="h-4 w-4" />
-                              {trip.days} days
+                              {getDaysDifference(trip.start_date, trip.end_date)} days
                             </span>
                           </div>
                         </div>
                         <Badge
-                          variant={trip.status === "Confirmed" ? "default" : "secondary"}
+                          variant={trip.status === "confirmed" ? "default" : "secondary"}
                         >
-                          {trip.status}
+                          {trip.status.charAt(0).toUpperCase() + trip.status.slice(1)}
                         </Badge>
                       </div>
                       <div className="flex gap-2">
@@ -169,38 +215,39 @@ const Profile = () => {
                   </div>
                 </CardContent>
               </Card>
-            ))}
+            ))
+            )}
           </TabsContent>
 
           <TabsContent value="past" className="space-y-4">
-            {pastTrips.map((trip) => (
+            {pastTrips.length === 0 ? (
+              <Card className="border-border shadow-soft">
+                <CardContent className="p-12 text-center">
+                  <Star className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+                  <h3 className="text-xl font-semibold mb-2">No past trips yet</h3>
+                  <p className="text-muted-foreground">Your travel memories will appear here</p>
+                </CardContent>
+              </Card>
+            ) : (
+              pastTrips.map((trip) => (
               <Card key={trip.id} className="border-border shadow-soft hover:shadow-medium transition-smooth">
                 <CardContent className="p-0">
                   <div className="flex flex-col md:flex-row">
                     <div className="md:w-48 h-48 md:h-auto">
                       <img
-                        src={trip.image}
-                        alt={trip.destination}
+                        src={trip.destinations?.image_url || ""}
+                        alt={trip.destinations?.name || "Destination"}
                         className="w-full h-full object-cover rounded-t-lg md:rounded-l-lg md:rounded-t-none"
+                        onError={(e) => {
+                          e.currentTarget.src = "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800";
+                        }}
                       />
                     </div>
                     <div className="flex-1 p-6">
-                      <h3 className="text-xl font-semibold mb-2">{trip.destination}</h3>
-                      <div className="flex items-center gap-2 mb-4">
-                        <div className="flex gap-1">
-                          {[...Array(5)].map((_, i) => (
-                            <Star
-                              key={i}
-                              className={`h-4 w-4 ${
-                                i < trip.rating
-                                  ? "text-secondary fill-secondary"
-                                  : "text-muted"
-                              }`}
-                            />
-                          ))}
-                        </div>
-                        <span className="text-sm text-muted-foreground">{trip.date}</span>
-                      </div>
+                      <h3 className="text-xl font-semibold mb-2">{trip.destinations?.name || "Unknown Destination"}</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        {new Date(trip.end_date).toLocaleDateString()}
+                      </p>
                       <div className="flex gap-2">
                         <Button variant="outline">Write Review</Button>
                         <Button variant="ghost">View Photos</Button>
@@ -209,36 +256,21 @@ const Profile = () => {
                   </div>
                 </CardContent>
               </Card>
-            ))}
+            ))
+            )}
           </TabsContent>
 
           <TabsContent value="saved">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {savedDestinations.map((destination) => (
-                <Card key={destination.id} className="group overflow-hidden border-border hover:shadow-medium transition-smooth cursor-pointer">
-                  <div className="relative h-48 overflow-hidden">
-                    <img
-                      src={destination.image}
-                      alt={destination.name}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-smooth"
-                    />
-                    <Button
-                      size="icon"
-                      variant="secondary"
-                      className="absolute top-3 right-3"
-                    >
-                      <Heart className="h-4 w-4 fill-current" />
-                    </Button>
-                  </div>
-                  <CardContent className="p-4">
-                    <h3 className="font-semibold mb-2">{destination.name}</h3>
-                    <Button variant="default" size="sm" className="w-full">
-                      Explore
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <Card className="border-border shadow-soft">
+              <CardContent className="p-12 text-center">
+                <Heart className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+                <h3 className="text-xl font-semibold mb-2">No saved destinations yet</h3>
+                <p className="text-muted-foreground mb-4">Start exploring and save your favorite places!</p>
+                <Button variant="hero" asChild>
+                  <a href="/destinations">Browse Destinations</a>
+                </Button>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>

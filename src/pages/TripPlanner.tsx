@@ -11,8 +11,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Calendar, MapPin, Users, DollarSign, Plane, Plus, Trash2 } from "lucide-react";
+import { Calendar, MapPin, Users, DollarSign, Plane, Plus, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Activity {
   id: number;
@@ -21,9 +23,20 @@ interface Activity {
 }
 
 const TripPlanner = () => {
+  const { user } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([
     { id: 1, name: "", time: "" },
   ]);
+  const [formData, setFormData] = useState({
+    destination: "",
+    tripType: "",
+    startDate: "",
+    endDate: "",
+    travelers: "2",
+    budget: "",
+    notes: "",
+  });
 
   const addActivity = () => {
     setActivities([...activities, { id: Date.now(), name: "", time: "" }]);
@@ -33,9 +46,63 @@ const TripPlanner = () => {
     setActivities(activities.filter((activity) => activity.id !== id));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const updateActivity = (id: number, field: "name" | "time", value: string) => {
+    setActivities(activities.map(activity => 
+      activity.id === id ? { ...activity, [field]: value } : activity
+    ));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success("Trip plan saved! We'll send you a detailed itinerary.");
+    
+    if (!user) {
+      toast.error("Please login to create a trip plan");
+      return;
+    }
+
+    // Validate required fields
+    if (!formData.destination || !formData.tripType || !formData.startDate || 
+        !formData.endDate || !formData.budget) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const { error } = await supabase.from("trip_plans").insert([{
+        user_id: user.id,
+        destination: formData.destination,
+        trip_type: formData.tripType,
+        start_date: formData.startDate,
+        end_date: formData.endDate,
+        travelers: parseInt(formData.travelers),
+        budget: formData.budget,
+        notes: formData.notes || null,
+        activities: activities.filter(a => a.name || a.time) as any,
+      }]);
+
+      if (error) throw error;
+
+      toast.success("Trip plan saved successfully!");
+      
+      // Reset form
+      setFormData({
+        destination: "",
+        tripType: "",
+        startDate: "",
+        endDate: "",
+        travelers: "2",
+        budget: "",
+        notes: "",
+      });
+      setActivities([{ id: 1, name: "", time: "" }]);
+    } catch (error: any) {
+      toast.error("Failed to save trip plan");
+      console.error(error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -66,11 +133,12 @@ const TripPlanner = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="destination">Destination</Label>
-                  <Input id="destination" placeholder="Where do you want to go?" required />
+                  <Input id="destination" placeholder="Where do you want to go?" required 
+                    value={formData.destination} onChange={(e) => setFormData({...formData, destination: e.target.value})} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="trip-type">Trip Type</Label>
-                  <Select required>
+                  <Select required value={formData.tripType} onValueChange={(value) => setFormData({...formData, tripType: value})}>
                     <SelectTrigger id="trip-type">
                       <SelectValue placeholder="Select trip type" />
                     </SelectTrigger>
@@ -88,11 +156,11 @@ const TripPlanner = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="start-date">Start Date</Label>
-                  <Input id="start-date" type="date" required />
+                  <Input id="start-date" type="date" required value={formData.startDate} onChange={(e) => setFormData({...formData, startDate: e.target.value})} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="end-date">End Date</Label>
-                  <Input id="end-date" type="date" required />
+                  <Input id="end-date" type="date" required value={formData.endDate} onChange={(e) => setFormData({...formData, endDate: e.target.value})} />
                 </div>
               </div>
 
@@ -102,14 +170,14 @@ const TripPlanner = () => {
                     <Users className="h-4 w-4" />
                     Number of Travelers
                   </Label>
-                  <Input id="travelers" type="number" min="1" defaultValue="2" required />
+                  <Input id="travelers" type="number" min="1" value={formData.travelers} onChange={(e) => setFormData({...formData, travelers: e.target.value})} required />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="budget" className="flex items-center gap-2">
                     <DollarSign className="h-4 w-4" />
                     Budget (per person)
                   </Label>
-                  <Select required>
+                  <Select required value={formData.budget} onValueChange={(value) => setFormData({...formData, budget: value})}>
                     <SelectTrigger id="budget">
                       <SelectValue placeholder="Select budget" />
                     </SelectTrigger>
@@ -143,6 +211,8 @@ const TripPlanner = () => {
                     <Input
                       id={`activity-${activity.id}`}
                       placeholder="e.g., Visit Eiffel Tower"
+                      value={activity.name}
+                      onChange={(e) => updateActivity(activity.id, "name", e.target.value)}
                     />
                   </div>
                   <div className="w-32 space-y-2">
@@ -150,6 +220,8 @@ const TripPlanner = () => {
                     <Input
                       id={`time-${activity.id}`}
                       type="time"
+                      value={activity.time}
+                      onChange={(e) => updateActivity(activity.id, "time", e.target.value)}
                     />
                   </div>
                   {activities.length > 1 && (
@@ -188,6 +260,8 @@ const TripPlanner = () => {
                   id="notes"
                   placeholder="Any dietary restrictions, accessibility needs, or special interests?"
                   rows={4}
+                  value={formData.notes}
+                  onChange={(e) => setFormData({...formData, notes: e.target.value})}
                 />
               </div>
             </CardContent>
@@ -195,10 +269,17 @@ const TripPlanner = () => {
 
           {/* Submit */}
           <div className="flex flex-col sm:flex-row gap-4">
-            <Button type="submit" variant="hero" size="lg" className="flex-1">
-              Create My Itinerary
+            <Button type="submit" variant="hero" size="lg" className="flex-1" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Create My Itinerary"
+              )}
             </Button>
-            <Button type="button" variant="outline" size="lg">
+            <Button type="button" variant="outline" size="lg" disabled={isSubmitting}>
               Save Draft
             </Button>
           </div>

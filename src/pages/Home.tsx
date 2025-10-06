@@ -1,57 +1,49 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, Star, MapPin, Calendar, TrendingUp } from "lucide-react";
+import { ArrowRight, Star, Calendar, TrendingUp, Loader2 } from "lucide-react";
 import heroImage from "@/assets/hero-beach.jpg";
-import parisImage from "@/assets/dest-paris.jpg";
-import japanImage from "@/assets/dest-japan.jpg";
-import santoriniImage from "@/assets/dest-santorini.jpg";
-import peruImage from "@/assets/dest-peru.jpg";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+
+interface Destination {
+  id: string;
+  name: string;
+  image_url: string | null;
+  rating: number;
+  review_count: number;
+  price: number;
+  type: string;
+  trending: boolean;
+}
 
 const Home = () => {
-  const featuredDestinations = [
-    {
-      id: 1,
-      name: "Paris, France",
-      image: parisImage,
-      rating: 4.9,
-      reviews: 2340,
-      price: "$1,299",
-      type: "City",
-      trending: true,
-    },
-    {
-      id: 2,
-      name: "Kyoto, Japan",
-      image: japanImage,
-      rating: 4.8,
-      reviews: 1876,
-      price: "$1,899",
-      type: "Cultural",
-      trending: false,
-    },
-    {
-      id: 3,
-      name: "Santorini, Greece",
-      image: santoriniImage,
-      rating: 4.9,
-      reviews: 3120,
-      price: "$1,499",
-      type: "Beach",
-      trending: true,
-    },
-    {
-      id: 4,
-      name: "Machu Picchu, Peru",
-      image: peruImage,
-      rating: 4.7,
-      reviews: 1543,
-      price: "$1,799",
-      type: "Adventure",
-      trending: false,
-    },
-  ];
+  const [featuredDestinations, setFeaturedDestinations] = useState<Destination[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchFeaturedDestinations();
+  }, []);
+
+  const fetchFeaturedDestinations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("destinations")
+        .select("*")
+        .limit(4)
+        .order("trending", { ascending: false });
+
+      if (error) throw error;
+      setFeaturedDestinations(data || []);
+    } catch (error: any) {
+      toast.error("Failed to load destinations");
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen">
@@ -122,7 +114,13 @@ const Home = () => {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {featuredDestinations.map((destination, index) => (
             <Card
               key={destination.id}
@@ -131,9 +129,12 @@ const Home = () => {
             >
               <div className="relative h-48 overflow-hidden">
                 <img
-                  src={destination.image}
+                  src={destination.image_url || ""}
                   alt={destination.name}
                   className="w-full h-full object-cover group-hover:scale-110 transition-smooth"
+                  onError={(e) => {
+                    e.currentTarget.src = "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800";
+                  }}
                 />
                 {destination.trending && (
                   <Badge className="absolute top-3 right-3 bg-secondary text-secondary-foreground">
@@ -152,10 +153,10 @@ const Home = () => {
                 <div className="flex items-center gap-1 text-sm text-muted-foreground mb-3">
                   <Star className="h-4 w-4 fill-secondary text-secondary" />
                   <span className="font-medium text-foreground">{destination.rating}</span>
-                  <span>({destination.reviews} reviews)</span>
+                  <span>({destination.review_count} reviews)</span>
                 </div>
                 <div className="text-2xl font-bold gradient-ocean bg-clip-text text-transparent">
-                  {destination.price}
+                  ${destination.price.toFixed(2)}
                 </div>
                 <p className="text-xs text-muted-foreground">per person</p>
               </CardContent>
@@ -178,6 +179,8 @@ const Home = () => {
             </Link>
           </Button>
         </div>
+          </>
+        )}
       </section>
 
       {/* CTA Section */}

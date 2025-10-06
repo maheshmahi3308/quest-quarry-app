@@ -1,14 +1,25 @@
 import { Link, useLocation } from "react-router-dom";
-import { Plane, Menu, User, Heart } from "lucide-react";
+import { Plane, Menu, User, Heart, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Navbar = () => {
   const location = useLocation();
+  const { user, signOut } = useAuth();
   
   const navItems = [
     { name: "Home", path: "/" },
@@ -47,17 +58,54 @@ const Navbar = () => {
         </nav>
 
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" asChild className="hidden md:flex">
-            <Link to="/favorites">
-              <Heart className="h-5 w-5" />
-            </Link>
-          </Button>
-          <Button variant="default" size="sm" asChild className="hidden md:flex">
-            <Link to="/profile">
-              <User className="h-4 w-4 mr-2" />
-              Profile
-            </Link>
-          </Button>
+          {user ? (
+            <>
+              <Button variant="ghost" size="icon" asChild className="hidden md:flex">
+                <Link to="/favorites">
+                  <Heart className="h-5 w-5" />
+                </Link>
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="hidden md:flex">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="gradient-ocean text-white text-sm">
+                        {user.email?.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link to="/profile">
+                      <User className="h-4 w-4 mr-2" />
+                      Profile
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/favorites">
+                      <Heart className="h-4 w-4 mr-2" />
+                      Favorites
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => signOut()}>
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Logout
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          ) : (
+            <Button variant="default" size="sm" asChild className="hidden md:flex">
+              <Link to="/auth">
+                <User className="h-4 w-4 mr-2" />
+                Login
+              </Link>
+            </Button>
+          )}
 
           {/* Mobile Menu */}
           <Sheet>
@@ -80,12 +128,26 @@ const Navbar = () => {
                   </Link>
                 ))}
                 <div className="border-t border-border my-2" />
-                <Link to="/favorites" className="text-base font-medium text-muted-foreground hover:text-primary py-2">
-                  Favorites
-                </Link>
-                <Link to="/profile" className="text-base font-medium text-muted-foreground hover:text-primary py-2">
-                  Profile
-                </Link>
+                {user ? (
+                  <>
+                    <Link to="/favorites" className="text-base font-medium text-muted-foreground hover:text-primary py-2">
+                      Favorites
+                    </Link>
+                    <Link to="/profile" className="text-base font-medium text-muted-foreground hover:text-primary py-2">
+                      Profile
+                    </Link>
+                    <button
+                      onClick={() => signOut()}
+                      className="text-base font-medium text-muted-foreground hover:text-primary py-2 w-full text-left"
+                    >
+                      Logout
+                    </button>
+                  </>
+                ) : (
+                  <Link to="/auth" className="text-base font-medium text-muted-foreground hover:text-primary py-2">
+                    Login
+                  </Link>
+                )}
               </nav>
             </SheetContent>
           </Sheet>

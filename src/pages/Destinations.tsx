@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,92 +10,51 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Star, Search, MapPin, TrendingUp } from "lucide-react";
-import parisImage from "@/assets/dest-paris.jpg";
-import japanImage from "@/assets/dest-japan.jpg";
-import santoriniImage from "@/assets/dest-santorini.jpg";
-import peruImage from "@/assets/dest-peru.jpg";
+import { Star, Search, MapPin, TrendingUp, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+
+interface Destination {
+  id: string;
+  name: string;
+  country: string;
+  description: string | null;
+  image_url: string | null;
+  price: number;
+  type: string;
+  rating: number;
+  review_count: number;
+  trending: boolean;
+}
 
 const Destinations = () => {
+  const [destinations, setDestinations] = useState<Destination[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCountry, setSelectedCountry] = useState("all");
   const [selectedType, setSelectedType] = useState("all");
   const [priceRange, setPriceRange] = useState("all");
 
-  const destinations = [
-    {
-      id: 1,
-      name: "Paris, France",
-      country: "France",
-      image: parisImage,
-      rating: 4.9,
-      reviews: 2340,
-      price: 1299,
-      type: "City",
-      trending: true,
-      description: "The City of Light awaits with iconic landmarks and romantic charm",
-    },
-    {
-      id: 2,
-      name: "Kyoto, Japan",
-      country: "Japan",
-      image: japanImage,
-      rating: 4.8,
-      reviews: 1876,
-      price: 1899,
-      type: "Cultural",
-      trending: false,
-      description: "Experience ancient temples and traditional Japanese culture",
-    },
-    {
-      id: 3,
-      name: "Santorini, Greece",
-      country: "Greece",
-      image: santoriniImage,
-      rating: 4.9,
-      reviews: 3120,
-      price: 1499,
-      type: "Beach",
-      trending: true,
-      description: "Stunning sunsets and crystal-clear Aegean waters",
-    },
-    {
-      id: 4,
-      name: "Machu Picchu, Peru",
-      country: "Peru",
-      image: peruImage,
-      rating: 4.7,
-      reviews: 1543,
-      price: 1799,
-      type: "Adventure",
-      trending: false,
-      description: "Ancient Incan citadel set high in the Andes Mountains",
-    },
-    {
-      id: 5,
-      name: "Paris, France",
-      country: "France",
-      image: parisImage,
-      rating: 4.9,
-      reviews: 2340,
-      price: 999,
-      type: "City",
-      trending: false,
-      description: "Eiffel Tower and world-class museums",
-    },
-    {
-      id: 6,
-      name: "Kyoto, Japan",
-      country: "Japan",
-      image: japanImage,
-      rating: 4.8,
-      reviews: 1876,
-      price: 2199,
-      type: "Cultural",
-      trending: true,
-      description: "Cherry blossoms and zen gardens",
-    },
-  ];
+  useEffect(() => {
+    fetchDestinations();
+  }, []);
+
+  const fetchDestinations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("destinations")
+        .select("*")
+        .order("trending", { ascending: false });
+
+      if (error) throw error;
+      setDestinations(data || []);
+    } catch (error: any) {
+      toast.error("Failed to load destinations");
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredDestinations = destinations.filter((dest) => {
     const matchesSearch = dest.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -109,6 +68,14 @@ const Destinations = () => {
 
     return matchesSearch && matchesCountry && matchesType && matchesPrice;
   });
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen py-12">
@@ -191,9 +158,12 @@ const Destinations = () => {
             >
               <div className="relative h-56 overflow-hidden">
                 <img
-                  src={destination.image}
+                  src={destination.image_url || ""}
                   alt={destination.name}
                   className="w-full h-full object-cover group-hover:scale-110 transition-smooth"
+                  onError={(e) => {
+                    e.currentTarget.src = "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800";
+                  }}
                 />
                 {destination.trending && (
                   <Badge className="absolute top-3 right-3 bg-secondary text-secondary-foreground">
@@ -215,16 +185,13 @@ const Destinations = () => {
                     </div>
                   </div>
                 </div>
-                <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                  {destination.description}
-                </p>
                 <div className="flex items-center gap-1 text-sm text-muted-foreground mb-3">
                   <Star className="h-4 w-4 fill-secondary text-secondary" />
                   <span className="font-medium text-foreground">{destination.rating}</span>
-                  <span>({destination.reviews} reviews)</span>
+                  <span>({destination.review_count} reviews)</span>
                 </div>
                 <div className="text-2xl font-bold gradient-ocean bg-clip-text text-transparent">
-                  ${destination.price}
+                  ${destination.price.toFixed(2)}
                 </div>
                 <p className="text-xs text-muted-foreground">per person</p>
               </CardContent>

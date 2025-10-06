@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -11,82 +11,101 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Star, MessageSquare, ThumbsUp, Send } from "lucide-react";
+import { Star, MessageSquare, ThumbsUp, Send, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Review {
-  id: number;
-  author: string;
-  destination: string;
+  id: string;
+  user_id: string;
+  destination_id: string;
   rating: number;
-  date: string;
   content: string;
   likes: number;
-  tripType: string;
+  created_at: string;
+  profiles: {
+    display_name: string | null;
+  } | null;
+  destinations: {
+    name: string;
+    type: string;
+  } | null;
 }
 
 const Reviews = () => {
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedFilter, setSelectedFilter] = useState("all");
   const [newReview, setNewReview] = useState("");
+  const [newRating, setNewRating] = useState(5);
+  const { user } = useAuth();
 
-  const reviews: Review[] = [
-    {
-      id: 1,
-      author: "Sarah Johnson",
-      destination: "Paris, France",
-      rating: 5,
-      date: "2 days ago",
-      content:
-        "Absolutely magical experience! The Eiffel Tower at night is breathtaking. The food, the culture, everything exceeded my expectations. Our guide was knowledgeable and friendly. Highly recommend!",
-      likes: 24,
-      tripType: "City",
-    },
-    {
-      id: 2,
-      author: "Michael Chen",
-      destination: "Kyoto, Japan",
-      rating: 5,
-      date: "1 week ago",
-      content:
-        "The cherry blossoms were in full bloom and it was stunning! The temples are incredibly peaceful. Japanese hospitality is second to none. This trip changed my perspective on travel.",
-      likes: 31,
-      tripType: "Cultural",
-    },
-    {
-      id: 3,
-      author: "Emma Williams",
-      destination: "Santorini, Greece",
-      rating: 4,
-      date: "2 weeks ago",
-      content:
-        "Beautiful sunsets and amazing food! The blue domes are just as beautiful in person. A bit crowded during peak season, but still worth every moment. The local wine is delicious!",
-      likes: 18,
-      tripType: "Beach",
-    },
-    {
-      id: 4,
-      author: "David Martinez",
-      destination: "Machu Picchu, Peru",
-      rating: 5,
-      date: "3 weeks ago",
-      content:
-        "Once in a lifetime experience! The hike was challenging but incredibly rewarding. The ancient ruins are awe-inspiring. Make sure you're prepared for altitude and bring layers!",
-      likes: 42,
-      tripType: "Adventure",
-    },
-  ];
+  useEffect(() => {
+    fetchReviews();
+  }, []);
+
+  const fetchReviews = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("reviews")
+        .select(`
+          *,
+          profiles (display_name),
+          destinations (name, type)
+        `)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setReviews(data || []);
+    } catch (error: any) {
+      toast.error("Failed to load reviews");
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredReviews =
     selectedFilter === "all"
       ? reviews
-      : reviews.filter((review) => review.tripType === selectedFilter);
+      : reviews.filter((review) => review.destinations?.type === selectedFilter);
 
-  const handleSubmitReview = () => {
-    if (newReview.trim()) {
-      toast.success("Review submitted! Thank you for sharing your experience.");
-      setNewReview("");
+  const handleSubmitReview = async () => {
+    if (!user) {
+      toast.error("Please login to submit a review");
+      return;
     }
+
+    if (!newReview.trim()) {
+      toast.error("Please write a review");
+      return;
+    }
+
+    toast.info("Review feature coming soon! Connect it to a destination first.");
+    setNewReview("");
   };
+
+  const getTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInMs = now.getTime() - date.getTime();
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+    
+    if (diffInDays === 0) return "Today";
+    if (diffInDays === 1) return "Yesterday";
+    if (diffInDays < 7) return `${diffInDays} days ago`;
+    if (diffInDays < 30) return `${Math.floor(diffInDays / 7)} weeks ago`;
+    return `${Math.floor(diffInDays / 30)} months ago`;
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen py-12">
@@ -120,7 +139,12 @@ const Reviews = () => {
                 {[1, 2, 3, 4, 5].map((star) => (
                   <Star
                     key={star}
-                    className="h-6 w-6 cursor-pointer text-secondary fill-secondary hover:scale-110 transition-smooth"
+                    className={`h-6 w-6 cursor-pointer transition-smooth ${
+                      star <= newRating
+                        ? "text-secondary fill-secondary"
+                        : "text-muted"
+                    } hover:scale-110`}
+                    onClick={() => setNewRating(star)}
                   />
                 ))}
               </div>
@@ -163,16 +187,16 @@ const Reviews = () => {
                 <div className="flex items-start gap-4">
                   <Avatar className="h-12 w-12">
                     <AvatarFallback className="gradient-ocean text-white font-semibold">
-                      {review.author.split(" ").map((n) => n[0]).join("")}
+                      {review.profiles?.display_name?.charAt(0) || "U"}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1">
                     <div className="flex items-start justify-between mb-2">
                       <div>
-                        <h4 className="font-semibold text-lg">{review.author}</h4>
-                        <p className="text-sm text-muted-foreground">{review.date}</p>
+                        <h4 className="font-semibold text-lg">{review.profiles?.display_name || "Anonymous"}</h4>
+                        <p className="text-sm text-muted-foreground">{getTimeAgo(review.created_at)}</p>
                       </div>
-                      <Badge variant="secondary">{review.tripType}</Badge>
+                      <Badge variant="secondary">{review.destinations?.type || "Travel"}</Badge>
                     </div>
                     <div className="flex items-center gap-2 mb-3">
                       <div className="flex gap-1">
@@ -188,7 +212,7 @@ const Reviews = () => {
                         ))}
                       </div>
                       <span className="text-sm font-medium text-primary">
-                        {review.destination}
+                        {review.destinations?.name || "Unknown Destination"}
                       </span>
                     </div>
                     <p className="text-muted-foreground mb-4 leading-relaxed">
