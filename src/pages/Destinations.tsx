@@ -13,6 +13,7 @@ import {
 import { Star, Search, MapPin, TrendingUp, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { BookingDialog } from "@/components/BookingDialog";
 
 interface Destination {
   id: string;
@@ -34,6 +35,8 @@ const Destinations = () => {
   const [selectedCountry, setSelectedCountry] = useState("all");
   const [selectedType, setSelectedType] = useState("all");
   const [priceRange, setPriceRange] = useState("all");
+  const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
+  const [selectedDestination, setSelectedDestination] = useState<Destination | null>(null);
 
   useEffect(() => {
     fetchDestinations();
@@ -196,7 +199,14 @@ const Destinations = () => {
                 <p className="text-xs text-muted-foreground">per person</p>
               </CardContent>
               <CardFooter className="p-5 pt-0">
-                <Button variant="default" className="w-full">
+                <Button 
+                  variant="default" 
+                  className="w-full"
+                  onClick={() => {
+                    setSelectedDestination(destination);
+                    setBookingDialogOpen(true);
+                  }}
+                >
                   Book Now
                 </Button>
               </CardFooter>
@@ -212,6 +222,14 @@ const Destinations = () => {
           </div>
         )}
       </div>
+
+      {selectedDestination && (
+        <BookingDialog
+          open={bookingDialogOpen}
+          onOpenChange={setBookingDialogOpen}
+          destination={selectedDestination}
+        />
+      )}
     </div>
   );
 };
