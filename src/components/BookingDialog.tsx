@@ -5,12 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Users, DollarSign } from "lucide-react";
+import { CalendarIcon, Users, DollarSign, CreditCard } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 interface BookingDialogProps {
   open: boolean;
@@ -28,6 +29,7 @@ export const BookingDialog = ({ open, onOpenChange, destination }: BookingDialog
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
   const [travelers, setTravelers] = useState(1);
+  const [paymentMethod, setPaymentMethod] = useState("credit_card");
   const [loading, setLoading] = useState(false);
 
   const calculateTotalPrice = () => {
@@ -145,6 +147,32 @@ export const BookingDialog = ({ open, onOpenChange, destination }: BookingDialog
                 className="pl-10"
               />
             </div>
+          </div>
+
+          {/* Payment Method */}
+          <div className="space-y-3">
+            <Label className="flex items-center gap-2">
+              <CreditCard className="h-4 w-4" />
+              Payment Method
+            </Label>
+            <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
+              <div className="flex items-center space-x-2 border rounded-lg p-3 hover:bg-muted/50 transition-colors">
+                <RadioGroupItem value="credit_card" id="credit_card" />
+                <Label htmlFor="credit_card" className="flex-1 cursor-pointer">Credit Card</Label>
+              </div>
+              <div className="flex items-center space-x-2 border rounded-lg p-3 hover:bg-muted/50 transition-colors">
+                <RadioGroupItem value="debit_card" id="debit_card" />
+                <Label htmlFor="debit_card" className="flex-1 cursor-pointer">Debit Card</Label>
+              </div>
+              <div className="flex items-center space-x-2 border rounded-lg p-3 hover:bg-muted/50 transition-colors">
+                <RadioGroupItem value="paypal" id="paypal" />
+                <Label htmlFor="paypal" className="flex-1 cursor-pointer">PayPal</Label>
+              </div>
+              <div className="flex items-center space-x-2 border rounded-lg p-3 hover:bg-muted/50 transition-colors">
+                <RadioGroupItem value="bank_transfer" id="bank_transfer" />
+                <Label htmlFor="bank_transfer" className="flex-1 cursor-pointer">Bank Transfer</Label>
+              </div>
+            </RadioGroup>
           </div>
 
           {/* Total Price */}
